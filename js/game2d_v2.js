@@ -73,13 +73,21 @@ class Game2D {
             this.canvas.height = Math.max(this.canvas.height, window.innerHeight - padding);
         }
 
-        const joystickSize = Math.min(250, window.innerHeight * 0.3, window.innerWidth * 0.3);
+        let joystickSize = 200;
+        if (window.innerWidth <= 480) {
+            joystickSize = 120;
+        } else if (window.innerWidth <= 768) {
+            joystickSize = 150;
+        }
+
         this.joystickCanvas.width = joystickSize;
         this.joystickCanvas.height = joystickSize;
         this.joystick.baseX = joystickSize / 2;
         this.joystick.baseY = joystickSize / 2;
         this.joystick.knobX = this.joystick.baseX;
         this.joystick.knobY = this.joystick.baseY;
+        this.joystick.radius = joystickSize * 0.38;
+        this.joystick.knobRadius = joystickSize * 0.19;
     }
 
     generateCoins() {
@@ -545,9 +553,12 @@ class Game2D {
         jCtx.clearRect(0, 0, this.joystickCanvas.width, this.joystickCanvas.height);
 
         const jPulse = Math.sin(this.animTime * 3) * 0.2 + 0.8;
+        const isMobile = window.innerWidth <= 768;
+        const baseShadow = isMobile ? 12 : 25;
+        const knobShadow = isMobile ? 10 : 20;
 
         if (this.joystick.active) {
-                jCtx.shadowBlur = 25;
+                jCtx.shadowBlur = baseShadow;
                 jCtx.shadowColor = 'rgba(0, 255, 65, 0.8)';
 
                 const baseGradient = jCtx.createRadialGradient(
@@ -577,7 +588,7 @@ class Game2D {
                 jCtx.lineTo(this.joystick.baseX, this.joystick.baseY + this.joystick.radius * 0.7);
                 jCtx.stroke();
 
-                jCtx.shadowBlur = 20;
+                jCtx.shadowBlur = knobShadow;
                 jCtx.shadowColor = 'rgba(0, 255, 65, 1)';
 
                 const knobGradient = jCtx.createRadialGradient(

@@ -121,25 +121,80 @@
             position: absolute;
             bottom: 20px;
             left: 20px;
-            width: 250px;
-            height: 250px;
-            max-width: 40vw;
-            max-height: 40vh;
+            width: 200px;
+            height: 200px;
+            max-width: 30vw;
+            max-height: 30vh;
             z-index: 50;
             touch-action: none;
             pointer-events: none;
         }
 
         @media (max-width: 768px) {
-            #joystick { width: 200px; height: 200px; }
-            .screen h1 { font-size: 48px; }
-            #ui { font-size: 18px; }
+            #joystick {
+                width: 150px;
+                height: 150px;
+                bottom: 10px;
+                left: 10px;
+            }
+            .screen h1 {
+                font-size: 40px;
+                margin-bottom: 20px;
+            }
+            .screen p {
+                font-size: 15px;
+                margin-bottom: 8px;
+            }
+            .screen button {
+                font-size: 24px;
+                padding: 14px 40px;
+                margin-top: 20px;
+            }
+            #ui {
+                font-size: 18px;
+                top: 10px;
+                left: 10px;
+            }
         }
 
         @media (max-width: 480px) {
-            #joystick { width: 180px; height: 180px; }
-            .screen h1 { font-size: 36px; letter-spacing: 4px; }
-            .screen button { font-size: 22px; padding: 15px 35px; }
+            #joystick {
+                width: 120px;
+                height: 120px;
+            }
+            .screen h1 {
+                font-size: 28px;
+                letter-spacing: 3px;
+                margin-bottom: 12px;
+            }
+            .screen p {
+                font-size: 12px;
+                margin-bottom: 5px;
+            }
+            .screen button {
+                font-size: 18px;
+                padding: 10px 25px;
+                margin-top: 12px;
+            }
+            #ui {
+                font-size: 14px;
+            }
+        }
+
+        @media (max-height: 600px) {
+            .screen h1 {
+                font-size: 26px;
+                margin-bottom: 10px;
+            }
+            .screen p {
+                font-size: 11px;
+                margin-bottom: 4px;
+            }
+            .screen button {
+                font-size: 16px;
+                padding: 8px 20px;
+                margin-top: 10px;
+            }
         }
     </style>
 </head>
@@ -207,6 +262,6 @@
             matrixCanvas.height = window.innerHeight;
         });
     </script>
-    <script src="js/game2d_v2.js?v=2.7"></script>
+    <script src="js/game2d_v2.js?v=3.0"></script>
 </body>
 </html>
