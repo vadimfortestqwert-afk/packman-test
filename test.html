@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MATRIX ESCAPE - TEST</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        #matrix-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.15;
+        }
+
+        #gameCanvas {
+            border: 3px solid #00ff41;
+            background: #000;
+            max-width: 100%;
+            max-height: 100%;
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.5), inset 0 0 30px rgba(0, 255, 65, 0.1);
+            position: relative;
+            z-index: 1;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00ff41;
+            font-size: 24px;
+            text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41;
+            z-index: 10;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.9; }
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.95);
+            color: #00ff41;
+            z-index: 100;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        .screen h1 {
+            font-size: 64px;
+            margin-bottom: 30px;
+            text-shadow: 0 0 20px #00ff41, 0 0 40px #00ff41, 0 0 60px #00ff41;
+            animation: pulse 2s infinite;
+            letter-spacing: 8px;
+        }
+
+        .screen p {
+            font-size: 20px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px #00ff41;
+            letter-spacing: 2px;
+        }
+
+        .screen button {
+            font-size: 28px;
+            padding: 18px 50px;
+            margin-top: 30px;
+            background: transparent;
+            color: #00ff41;
+            border: 3px solid #00ff41;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: 'Share Tech Mono', monospace;
+            text-shadow: 0 0 10px #00ff41;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.5), inset 0 0 20px rgba(0, 255, 65, 0.1);
+            transition: all 0.3s;
+            letter-spacing: 4px;
+        }
+
+        .screen button:hover {
+            background: rgba(0, 255, 65, 0.2);
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.8), inset 0 0 30px rgba(0, 255, 65, 0.2);
+        }
+
+        #joystick {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 250px;
+            height: 250px;
+            max-width: 40vw;
+            max-height: 40vh;
+            z-index: 50;
+            touch-action: none;
+            pointer-events: none;
+        }
+
+        @media (max-width: 768px) {
+            #joystick { width: 200px; height: 200px; }
+            .screen h1 { font-size: 48px; }
+            #ui { font-size: 18px; }
+        }
+
+        @media (max-width: 480px) {
+            #joystick { width: 180px; height: 180px; }
+            .screen h1 { font-size: 36px; letter-spacing: 4px; }
+            .screen button { font-size: 22px; padding: 15px 35px; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="matrix-bg"></canvas>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui">
+        <div>TIME: <span id="timer">90</span>s</div>
+        <div>DATA: <span id="coins">0</span>/20</div>
+    </div>
+
+    <div id="menu-screen" class="screen active">
+        <h1>MATRIX ESCAPE</h1>
+        <p>COLLECT 14 DATA PACKETS (70%) IN 90 SECONDS</p>
+        <p>EVADE THE SENTINEL!</p>
+        <p style="font-size: 16px; margin-top: 20px; opacity: 0.7;">USE MOUSE/TOUCH ANYWHERE TO MOVE</p>
+        <button id="start-btn">JACK IN</button>
+    </div>
+
+    <div id="win-screen" class="screen">
+        <h1>SYSTEM BREACH!</h1>
+        <p>YOU ESCAPED THE MATRIX</p>
+        <button id="restart-win-btn">REBOOT</button>
+    </div>
+
+    <div id="lose-screen" class="screen">
+        <h1>CONNECTION LOST</h1>
+        <p id="lose-msg"></p>
+        <p style="font-size: 16px; margin-top: 10px; opacity: 0.7;">THE MATRIX HAS YOU...</p>
+        <button id="restart-lose-btn">RECONNECT</button>
+    </div>
+
+    <canvas id="joystick"></canvas>
+
+    <script>
+        // Matrix rain effect
+        const matrixCanvas = document.getElementById('matrix-bg');
+        const matrixCtx = matrixCanvas.getContext('2d');
+        matrixCanvas.width = window.innerWidth;
+        matrixCanvas.height = window.innerHeight;
+
+        const matrixChars = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ01';
+        const fontSize = 14;
+        const columns = matrixCanvas.width / fontSize;
+        const drops = [];
+        for (let i = 0; i < columns; i++) drops[i] = Math.random() * -100;
+
+        function drawMatrix() {
+            matrixCtx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            matrixCtx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
+            matrixCtx.fillStyle = '#00ff41';
+            matrixCtx.font = fontSize + 'px monospace';
+
+            for (let i = 0; i < drops.length; i++) {
+                const text = matrixChars.charAt(Math.floor(Math.random() * matrixChars.length));
+                matrixCtx.fillText(text, i * fontSize, drops[i] * fontSize);
+                if (drops[i] * fontSize > matrixCanvas.height && Math.random() > 0.975) drops[i] = 0;
+                drops[i]++;
+            }
+        }
+        setInterval(drawMatrix, 50);
+        window.addEventListener('resize', () => {
+            matrixCanvas.width = window.innerWidth;
+            matrixCanvas.height = window.innerHeight;
+        });
+    </script>
+    <script src="js/game2d_v2.js?v=2.7"></script>
+</body>
+</html>
