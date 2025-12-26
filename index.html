@@ -22,7 +22,7 @@
 
         body {
             width: 100%;
-            height: 100vh;
+            min-height: 100vh;
             overflow: hidden;
             background: #000;
             font-family: 'Share Tech Mono', monospace;
@@ -30,6 +30,10 @@
             justify-content: center;
             align-items: center;
             position: relative;
+        }
+
+        body:has(.screen.active) {
+            overflow: auto;
         }
 
         @media screen and (orientation: portrait) {
@@ -93,6 +97,8 @@
             box-shadow: 0 0 30px rgba(0, 255, 65, 0.5), inset 0 0 30px rgba(0, 255, 65, 0.1);
             position: relative;
             z-index: 1;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
         }
 
         #ui {
@@ -204,7 +210,7 @@
             top: 0;
             left: 0;
             width: 100%;
-            height: 100%;
+            min-height: 100%;
             display: none;
             flex-direction: column;
             justify-content: center;
@@ -212,6 +218,9 @@
             background: transparent;
             color: #00ff41;
             z-index: 100;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 20px 10px;
         }
 
         .screen::before {
@@ -232,6 +241,7 @@
         .screen h1 {
             font-size: 64px;
             margin-bottom: 30px;
+            margin-top: 0;
             text-shadow: 0 0 20px #00ff41, 0 0 40px #00ff41, 0 0 60px #00ff41;
             animation: pulse 2s infinite;
             letter-spacing: 8px;
@@ -280,6 +290,8 @@
             z-index: 50;
             touch-action: none;
             pointer-events: none;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
         }
 
         @media (max-width: 768px) {
@@ -289,40 +301,44 @@
                 bottom: 10px;
                 left: 10px;
             }
+            .screen {
+                padding: 15px 10px;
+            }
             .screen h1 {
-                font-size: 40px;
-                margin-bottom: 20px;
+                font-size: 30px;
+                margin-bottom: 8px;
+                letter-spacing: 3px;
             }
             .screen p {
-                font-size: 15px;
-                margin-bottom: 8px;
+                font-size: 11px;
+                margin-bottom: 4px;
             }
             .screen button {
-                font-size: 24px;
-                padding: 14px 40px;
-                margin-top: 20px;
+                font-size: 18px;
+                padding: 10px 28px;
+                margin-top: 10px;
             }
             #ui {
-                font-size: 18px;
-                top: 10px;
-                left: 10px;
+                font-size: 16px;
+                top: 8px;
+                left: 8px;
             }
             #hacker-avatar img {
-                width: 50px;
-                height: 50px;
+                width: 45px;
+                height: 45px;
             }
             #hacker-name {
-                font-size: 10px;
+                font-size: 9px;
             }
             #menu-screen img {
-                width: 100px !important;
-                height: 100px !important;
-                margin-bottom: 20px !important;
-            }
-            #win-screen img, #lose-screen img {
                 width: 80px !important;
                 height: 80px !important;
-                margin-bottom: 15px !important;
+                margin-bottom: 10px !important;
+            }
+            #win-screen img, #lose-screen img {
+                width: 65px !important;
+                height: 65px !important;
+                margin-bottom: 8px !important;
             }
         }
 
@@ -331,48 +347,25 @@
                 width: 120px;
                 height: 120px;
             }
+            .screen {
+                padding: 12px 8px;
+            }
             .screen h1 {
-                font-size: 28px;
-                letter-spacing: 3px;
-                margin-bottom: 12px;
+                font-size: 22px;
+                letter-spacing: 1px;
+                margin-bottom: 6px;
             }
             .screen p {
-                font-size: 12px;
-                margin-bottom: 5px;
+                font-size: 10px;
+                margin-bottom: 3px;
             }
             .screen button {
-                font-size: 18px;
-                padding: 10px 25px;
-                margin-top: 12px;
+                font-size: 15px;
+                padding: 8px 20px;
+                margin-top: 8px;
             }
             #ui {
-                font-size: 14px;
-            }
-            #menu-screen img {
-                width: 70px !important;
-                height: 70px !important;
-                margin-bottom: 12px !important;
-            }
-            #win-screen img, #lose-screen img {
-                width: 60px !important;
-                height: 60px !important;
-                margin-bottom: 10px !important;
-            }
-        }
-
-        @media (max-height: 600px) {
-            .screen h1 {
-                font-size: 26px;
-                margin-bottom: 10px;
-            }
-            .screen p {
-                font-size: 11px;
-                margin-bottom: 4px;
-            }
-            .screen button {
-                font-size: 16px;
-                padding: 8px 20px;
-                margin-top: 10px;
+                font-size: 13px;
             }
             #menu-screen img {
                 width: 60px !important;
@@ -382,7 +375,98 @@
             #win-screen img, #lose-screen img {
                 width: 50px !important;
                 height: 50px !important;
-                margin-bottom: 8px !important;
+                margin-bottom: 6px !important;
+            }
+        }
+
+        @media (max-height: 700px) {
+            .screen {
+                padding: 10px 8px;
+            }
+            .screen h1 {
+                font-size: 24px;
+                margin-bottom: 5px;
+                letter-spacing: 2px;
+            }
+            .screen p {
+                font-size: 10px;
+                margin-bottom: 2px;
+            }
+            .screen button {
+                font-size: 14px;
+                padding: 7px 18px;
+                margin-top: 6px;
+            }
+            #menu-screen img {
+                width: 55px !important;
+                height: 55px !important;
+                margin-bottom: 6px !important;
+            }
+            #win-screen img, #lose-screen img {
+                width: 48px !important;
+                height: 48px !important;
+                margin-bottom: 5px !important;
+            }
+        }
+
+        @media (max-height: 600px) {
+            .screen {
+                padding: 8px 6px;
+            }
+            .screen h1 {
+                font-size: 20px;
+                margin-bottom: 4px;
+                letter-spacing: 1px;
+            }
+            .screen p {
+                font-size: 9px;
+                margin-bottom: 2px;
+            }
+            .screen button {
+                font-size: 13px;
+                padding: 6px 15px;
+                margin-top: 5px;
+            }
+            #menu-screen img {
+                width: 45px !important;
+                height: 45px !important;
+                margin-bottom: 5px !important;
+            }
+            #win-screen img, #lose-screen img {
+                width: 40px !important;
+                height: 40px !important;
+                margin-bottom: 4px !important;
+            }
+        }
+
+        @media (max-height: 500px) {
+            .screen {
+                padding: 5px 6px;
+                justify-content: flex-start;
+            }
+            .screen h1 {
+                font-size: 16px;
+                margin-bottom: 3px;
+                letter-spacing: 1px;
+            }
+            .screen p {
+                font-size: 8px;
+                margin-bottom: 1px;
+            }
+            .screen button {
+                font-size: 12px;
+                padding: 5px 12px;
+                margin-top: 4px;
+            }
+            #menu-screen img {
+                width: 35px !important;
+                height: 35px !important;
+                margin-bottom: 3px !important;
+            }
+            #win-screen img, #lose-screen img {
+                width: 30px !important;
+                height: 30px !important;
+                margin-bottom: 3px !important;
             }
         }
 
@@ -405,6 +489,8 @@
     <div id="ui">
         <div class="matrix-text">TIME: <span id="timer">90</span>s</div>
         <div class="matrix-text">DATA: <span id="coins">0</span>/20</div>
+        <div id="slow-indicator" class="matrix-text" style="display: none; color: #ff4444; animation: pulse 0.5s infinite;">⚠ SLOWED!</div>
+        <div id="boost-indicator" class="matrix-text" style="display: none; color: #00ffff; animation: pulse 0.3s infinite;">⚡ BOOST!</div>
     </div>
 
     <div id="hacker-avatar">
@@ -416,8 +502,10 @@
         <img src="assets/images/aaa.png" style="width: 150px; height: 150px; border-radius: 50%; border: 5px solid #00ff41; box-shadow: 0 0 40px rgba(0, 255, 65, 1), 0 0 80px rgba(0, 255, 65, 0.7); margin-bottom: 30px; object-fit: cover;">
         <h1>MATRIX ESCAPE</h1>
         <p style="font-size: 16px; margin-bottom: 5px; letter-spacing: 3px; opacity: 0.9;">HACKER PROFILE LOADED</p>
-        <p>COLLECT 14 DATA PACKETS (70%) IN 90 SECONDS</p>
-        <p>EVADE THE SENTINEL!</p>
+        <p>COLLECT 20 DATA PACKETS IN 90 SECONDS</p>
+        <p style="color: #ff6666;">EVADE THE SENTINEL! IT CAN RUSH!</p>
+        <p style="font-size: 14px; margin-top: 15px; color: #ff4444;">⚠ AVOID RED TRAPS - THEY SLOW YOU DOWN</p>
+        <p style="font-size: 14px; color: #00ffff;">⚡ GRAB BLUE BONUSES FOR SPEED BOOST</p>
         <p style="font-size: 16px; margin-top: 20px; opacity: 0.7;">USE MOUSE/TOUCH ANYWHERE TO MOVE</p>
         <button id="start-btn">JACK IN</button>
     </div>
@@ -502,6 +590,6 @@
             }, 100);
         });
     </script>
-    <script src="js/game2d_v2.js?v=4.0"></script>
+    <script src="js/game2d_v2.js?v=8.5"></script>
 </body>
 </html>
