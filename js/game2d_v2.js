@@ -111,16 +111,17 @@ class Game2D {
         this.sound = new SoundManager();
 
         this.state = 'menu';
-        this.time = 90;
+        this.time = 120;
         this.coinsCollected = 0;
-        this.coinsTotal = 20;
-        this.coinsRequired = 20;
+        this.coinsTotal = 35;
+        this.coinsRequired = 35;
+        this.lives = 3;
 
         this.player = {
             x: 400,
             y: 300,
-            radius: 20,
-            speed: 200,
+            radius: 14,
+            speed: 280,
             color: '#00ff00',
             direction: 1,
             wheelchair: {
@@ -134,9 +135,9 @@ class Game2D {
         this.boss = {
             x: 100,
             y: 100,
-            radius: 30,
-            speed: 140,
-            baseSpeed: 140,
+            radius: 20,
+            speed: 160,
+            baseSpeed: 160,
             rushTimer: 0,
             rushCooldown: 0
         };
@@ -156,6 +157,9 @@ class Game2D {
         this.bonuses = [];
         this.generateBonuses();
 
+        this.drones = [];
+        this.generateDrones();
+
         this.slowEffect = {
             active: false,
             duration: 0
@@ -164,6 +168,20 @@ class Game2D {
         this.speedBoost = {
             active: false,
             duration: 0
+        };
+
+        this.particles = [];
+
+        this.combo = {
+            count: 0,
+            timer: 0,
+            maxTime: 2
+        };
+
+        this.waveSystem = {
+            timer: 0,
+            interval: 25,
+            maxDrones: 5
         };
 
         this.joystick = {
@@ -267,7 +285,7 @@ class Game2D {
             const coin = {
                 x: Math.random() * (this.displayWidth - 60) + 30,
                 y: Math.random() * (this.displayHeight - 60) + 30,
-                radius: 10,
+                radius: 6,
                 collected: false
             };
 
@@ -308,11 +326,13 @@ class Game2D {
 
             while (!placed && attempts < 200) {
                 attempts++;
+                const trapType = Math.random() < 0.7 ? 'damage' : 'teleport';
                 const trap = {
                     x: Math.random() * (this.displayWidth - 100) + 50,
                     y: Math.random() * (this.displayHeight - 100) + 50,
-                    radius: 25,
-                    rotation: Math.random() * Math.PI * 2
+                    radius: 16,
+                    rotation: Math.random() * Math.PI * 2,
+                    type: trapType
                 };
 
                 let collides = false;
@@ -366,10 +386,14 @@ class Game2D {
 
             while (!placed && attempts < 200) {
                 attempts++;
+                const bonusTypes = ['speed', 'shield', 'magnet', 'freeze'];
+                const type = bonusTypes[Math.floor(Math.random() * bonusTypes.length)];
+
                 const bonus = {
                     x: Math.random() * (this.displayWidth - 100) + 50,
                     y: Math.random() * (this.displayHeight - 100) + 50,
-                    radius: 15,
+                    radius: 10,
+                    type: type,
                     collected: false
                 };
 
@@ -420,6 +444,61 @@ class Game2D {
         }
     }
 
+    generateDrones() {
+        this.drones = [];
+        const numDrones = 2;
+
+        for (let i = 0; i < numDrones; i++) {
+            let placed = false;
+            let attempts = 0;
+
+            while (!placed && attempts < 100) {
+                attempts++;
+
+                const drone = {
+                    x: Math.random() * (this.displayWidth - 100) + 50,
+                    y: Math.random() * (this.displayWidth - 100) + 50,
+                    radius: 12,
+                    speed: 100,
+                    patrolPoints: [],
+                    currentTargetIndex: 0,
+                    justHit: false
+                };
+
+                for (let j = 0; j < 3; j++) {
+                    drone.patrolPoints.push({
+                        x: Math.random() * (this.displayWidth - 100) + 50,
+                        y: Math.random() * (this.displayHeight - 100) + 50
+                    });
+                }
+
+                let collides = false;
+
+                for (const obs of this.obstacles) {
+                    if (this.checkCircleRectCollision(drone.x, drone.y, drone.radius + 40, obs)) {
+                        collides = true;
+                        break;
+                    }
+                }
+
+                if (!collides) {
+                    const playerDist = Math.sqrt(
+                        Math.pow(drone.x - this.player.x, 2) +
+                        Math.pow(drone.y - this.player.y, 2)
+                    );
+                    if (playerDist < 100) {
+                        collides = true;
+                    }
+                }
+
+                if (!collides) {
+                    this.drones.push(drone);
+                    placed = true;
+                }
+            }
+        }
+    }
+
     generateObstacles() {
         this.obstacles = [];
 
@@ -430,10 +509,10 @@ class Game2D {
         let numObstacles = Math.floor(8 * areaRatio);
         numObstacles = Math.max(3, Math.min(12, numObstacles));
 
-        const minSize = Math.max(40, this.displayWidth * 0.06);
-        const maxSize = Math.max(80, this.displayWidth * 0.12);
+        const minSize = Math.max(28, this.displayWidth * 0.04);
+        const maxSize = Math.max(55, this.displayWidth * 0.08);
 
-        const margin = Math.max(30, this.displayWidth * 0.05);
+        const margin = Math.max(20, this.displayWidth * 0.04);
 
         const sectorsX = Math.ceil(Math.sqrt(numObstacles));
         const sectorsY = Math.ceil(numObstacles / sectorsX);
@@ -556,25 +635,74 @@ class Game2D {
         document.getElementById('start-btn').addEventListener('click', () => this.startGame());
         document.getElementById('restart-win-btn').addEventListener('click', () => this.startGame());
         document.getElementById('restart-lose-btn').addEventListener('click', () => this.startGame());
+
+        document.addEventListener('keydown', (e) => {
+            if (this.state !== 'playing') return;
+
+            if (e.code === 'Space' && this.dash.cooldown <= 0 && !this.dash.active) {
+                this.activateDash();
+            }
+
+            if (e.code === 'ShiftLeft' && this.slowMotion.cooldown <= 0 && !this.slowMotion.active) {
+                this.activateSlowMotion();
+            }
+        });
     }
 
     startGame() {
         this.state = 'playing';
-        this.time = 90;
+        this.time = 120;
         this.coinsCollected = 0;
+        this.lives = 3;
 
         this.generateObstacles();
         this.generateTraps();
         this.generateBonuses();
+        this.generateDrones();
 
         this.slowEffect.active = false;
         this.slowEffect.duration = 0;
         this.speedBoost.active = false;
         this.speedBoost.duration = 0;
 
+        this.shield = {
+            active: false,
+            hits: 0
+        };
+
+        this.magnet = {
+            active: false,
+            duration: 0,
+            range: 20
+        };
+
+        this.freeze = {
+            active: false,
+            duration: 0
+        };
+
+        this.dash = {
+            active: false,
+            cooldown: 0,
+            maxCooldown: 3,
+            duration: 0.2,
+            distance: 80
+        };
+
+        this.slowMotion = {
+            active: false,
+            duration: 0,
+            cooldown: 0,
+            maxCooldown: 15
+        };
+
         this.boss.rushTimer = 0;
         this.boss.rushCooldown = 0;
         this.boss.speed = this.boss.baseSpeed;
+
+        this.particles = [];
+        this.combo.count = 0;
+        this.combo.timer = 0;
 
         let playerSpawned = false;
         let attempts = 0;
@@ -644,6 +772,26 @@ class Game2D {
             return;
         }
 
+        if (this.combo.timer > 0) {
+            this.combo.timer -= dt;
+            if (this.combo.timer <= 0) {
+                this.combo.count = 0;
+            }
+        }
+
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            const p = this.particles[i];
+            p.life -= dt;
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.vy += 100 * dt;
+            p.alpha = p.life / p.maxLife;
+
+            if (p.life <= 0) {
+                this.particles.splice(i, 1);
+            }
+        }
+
         this.time -= dt;
         if (this.time <= 0) {
             this.time = 0;
@@ -669,12 +817,68 @@ class Game2D {
             }
         }
 
+        if (this.magnet.active) {
+            this.magnet.duration -= dt;
+            if (this.magnet.duration <= 0) {
+                this.magnet.active = false;
+            }
+
+            for (const coin of this.coins) {
+                if (coin.collected) continue;
+                const dx = this.player.x - coin.x;
+                const dy = this.player.y - coin.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < this.magnet.range && dist > 0) {
+                    const pullSpeed = 300 * dt;
+                    coin.x += (dx / dist) * pullSpeed;
+                    coin.y += (dy / dist) * pullSpeed;
+                }
+            }
+        }
+
+        if (this.freeze.active) {
+            this.freeze.duration -= dt;
+            if (this.freeze.duration <= 0) {
+                this.freeze.active = false;
+            }
+        }
+
+        if (this.dash.cooldown > 0) {
+            this.dash.cooldown -= dt;
+        }
+
+        if (this.slowMotion.active) {
+            this.slowMotion.duration -= dt;
+            if (this.slowMotion.duration <= 0) {
+                this.slowMotion.active = false;
+            }
+        }
+
+        if (this.slowMotion.cooldown > 0) {
+            this.slowMotion.cooldown -= dt;
+        }
+
+        this.waveSystem.timer += dt;
+        if (this.waveSystem.timer >= this.waveSystem.interval && this.drones.length < this.waveSystem.maxDrones) {
+            this.waveSystem.timer = 0;
+            this.spawnNewDrone();
+        }
+
+        const timeMultiplier = this.slowMotion.active ? 0.5 : 1;
+
         let effectiveSpeed = this.player.speed;
         if (this.slowEffect.active) {
             effectiveSpeed *= 0.3;
         }
         if (this.speedBoost.active) {
             effectiveSpeed *= 1.8;
+        }
+        if (this.combo.count >= 3) {
+            effectiveSpeed *= 1.15;
+        }
+        if (this.combo.count >= 5) {
+            effectiveSpeed *= 1.1;
         }
 
         let newX = this.player.x + this.joystick.deltaX * effectiveSpeed * dt;
@@ -710,28 +914,29 @@ class Game2D {
             this.player.wheelchair.wheelRotation += this.player.wheelchair.wheelSpeed;
         }
 
-        this.boss.rushCooldown -= dt;
+        if (!this.freeze.active) {
+            this.boss.rushCooldown -= dt;
 
-        if (this.boss.rushCooldown <= 0 && Math.random() < 0.002) {
-            this.boss.rushTimer = 2;
-            this.boss.rushCooldown = 8;
-            this.sound.playSound('rush');
-        }
+            if (this.boss.rushCooldown <= 0 && Math.random() < 0.002) {
+                this.boss.rushTimer = 2;
+                this.boss.rushCooldown = 8;
+                this.sound.playSound('rush');
+            }
 
-        if (this.boss.rushTimer > 0) {
-            this.boss.rushTimer -= dt;
-            this.boss.speed = this.boss.baseSpeed * 2.2;
-        } else {
-            this.boss.speed = this.boss.baseSpeed;
-        }
+            if (this.boss.rushTimer > 0) {
+                this.boss.rushTimer -= dt;
+                this.boss.speed = this.boss.baseSpeed * 2.2;
+            } else {
+                this.boss.speed = this.boss.baseSpeed;
+            }
 
-        const dx = this.player.x - this.boss.x;
-        const dy = this.player.y - this.boss.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+            const dx = this.player.x - this.boss.x;
+            const dy = this.player.y - this.boss.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist > 0) {
-            let moveX = (dx / dist) * this.boss.speed * dt;
-            let moveY = (dy / dist) * this.boss.speed * dt;
+            if (dist > 0) {
+            let moveX = (dx / dist) * this.boss.speed * dt * timeMultiplier;
+            let moveY = (dy / dist) * this.boss.speed * dt * timeMultiplier;
 
             let newX = this.boss.x + moveX;
             let newY = this.boss.y + moveY;
@@ -787,6 +992,7 @@ class Game2D {
                 this.boss.x = newX;
                 this.boss.y = newY;
             }
+            }
         }
 
         const bossDist = Math.sqrt(
@@ -794,9 +1000,76 @@ class Game2D {
             Math.pow(this.player.y - this.boss.y, 2)
         );
         if (bossDist < this.player.radius + this.boss.radius) {
-            this.sound.playSound('caught');
-            this.lose('Boss caught you!');
-            return;
+            if (!this.boss.justHit) {
+                this.boss.justHit = true;
+                this.sound.playSound('caught');
+                this.createParticles(this.player.x, this.player.y, '#ff0000', 15);
+                this.combo.count = 0;
+                this.combo.timer = 0;
+
+                if (this.shield.active && this.shield.hits > 0) {
+                    this.shield.hits--;
+                    if (this.shield.hits <= 0) {
+                        this.shield.active = false;
+                    }
+                } else {
+                    this.lives--;
+                    if (this.lives <= 0) {
+                        this.lose('Boss caught you!');
+                        return;
+                    }
+                }
+
+                setTimeout(() => { this.boss.justHit = false; }, 1500);
+            }
+        }
+
+        if (!this.freeze.active) {
+            for (const drone of this.drones) {
+                const target = drone.patrolPoints[drone.currentTargetIndex];
+                const dx = target.x - drone.x;
+                const dy = target.y - drone.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < 10) {
+                    drone.currentTargetIndex = (drone.currentTargetIndex + 1) % drone.patrolPoints.length;
+                } else {
+                    const moveX = (dx / dist) * drone.speed * dt * timeMultiplier;
+                    const moveY = (dy / dist) * drone.speed * dt * timeMultiplier;
+                    drone.x += moveX;
+                    drone.y += moveY;
+                }
+
+                const droneDist = Math.sqrt(
+                    Math.pow(this.player.x - drone.x, 2) +
+                    Math.pow(this.player.y - drone.y, 2)
+                );
+
+                if (droneDist < this.player.radius + drone.radius) {
+                    if (!drone.justHit) {
+                        drone.justHit = true;
+                        this.sound.playSound('trap');
+                        this.createParticles(drone.x, drone.y, '#ff8800', 12);
+                        this.combo.count = 0;
+                        this.combo.timer = 0;
+
+                        if (this.shield.active && this.shield.hits > 0) {
+                            this.shield.hits--;
+                            if (this.shield.hits <= 0) {
+                                this.shield.active = false;
+                            }
+                        } else {
+                            this.lives--;
+                            if (this.lives <= 0) {
+                                this.lose('Drone caught you!');
+                                return;
+                            }
+                        }
+
+                        setTimeout(() => { drone.justHit = false; }, 1000);
+                    }
+                }
+            }
         }
 
         for (const coin of this.coins) {
@@ -812,6 +1085,11 @@ class Game2D {
                 this.coinsCollected++;
                 this.sound.playSound('coin');
 
+                this.combo.count++;
+                this.combo.timer = this.combo.maxTime;
+
+                this.createParticles(coin.x, coin.y, '#00ff41', 8);
+
                 if (this.coinsCollected >= this.coinsRequired) {
                     this.win();
                 }
@@ -825,10 +1103,54 @@ class Game2D {
             );
 
             if (trapDist < this.player.radius + trap.radius) {
-                if (!this.slowEffect.active) {
+                if (!trap.hit) {
+                    trap.hit = true;
                     this.sound.playSound('trap');
-                    this.slowEffect.active = true;
-                    this.slowEffect.duration = 3;
+                    this.combo.count = 0;
+                    this.combo.timer = 0;
+
+                    if (trap.type === 'teleport') {
+                        this.createParticles(trap.x, trap.y, '#ff00ff', 20);
+
+                        let teleported = false;
+                        let attempts = 0;
+                        while (!teleported && attempts < 50) {
+                            attempts++;
+                            const newX = Math.random() * (this.displayWidth - 100) + 50;
+                            const newY = Math.random() * (this.displayHeight - 100) + 50;
+
+                            let collides = false;
+                            for (const obs of this.obstacles) {
+                                if (this.checkCircleRectCollision(newX, newY, this.player.radius, obs)) {
+                                    collides = true;
+                                    break;
+                                }
+                            }
+
+                            if (!collides) {
+                                this.createParticles(newX, newY, '#ff00ff', 20);
+                                this.player.x = newX;
+                                this.player.y = newY;
+                                teleported = true;
+                            }
+                        }
+                    } else {
+                        this.createParticles(trap.x, trap.y, '#ff4444', 12);
+
+                        if (this.shield.active && this.shield.hits > 0) {
+                            this.shield.hits--;
+                            if (this.shield.hits <= 0) {
+                                this.shield.active = false;
+                            }
+                        } else {
+                            this.lives--;
+                            if (this.lives <= 0) {
+                                this.lose('No lives left!');
+                            }
+                        }
+                    }
+
+                    setTimeout(() => { trap.hit = false; }, 1000);
                 }
             }
         }
@@ -844,13 +1166,39 @@ class Game2D {
             if (bonusDist < this.player.radius + bonus.radius) {
                 bonus.collected = true;
                 this.sound.playSound('bonus');
-                this.speedBoost.active = true;
-                this.speedBoost.duration = 5;
+
+                switch(bonus.type) {
+                    case 'speed':
+                        this.speedBoost.active = true;
+                        this.speedBoost.duration = 5;
+                        this.createParticles(bonus.x, bonus.y, '#00ffff', 15);
+                        break;
+                    case 'shield':
+                        this.shield.active = true;
+                        this.shield.hits = 2;
+                        this.createParticles(bonus.x, bonus.y, '#ffaa00', 15);
+                        break;
+                    case 'magnet':
+                        this.magnet.active = true;
+                        this.magnet.duration = 8;
+                        this.createParticles(bonus.x, bonus.y, '#ff00ff', 15);
+                        break;
+                    case 'freeze':
+                        this.freeze.active = true;
+                        this.freeze.duration = 4;
+                        this.createParticles(bonus.x, bonus.y, '#aaaaff', 15);
+                        break;
+                }
             }
         }
 
         document.getElementById('timer').textContent = Math.ceil(this.time);
         document.getElementById('coins').textContent = this.coinsCollected;
+
+        const livesDisplay = '♥'.repeat(this.lives) + '♡'.repeat(Math.max(0, 3 - this.lives));
+        document.getElementById('lives').textContent = livesDisplay;
+
+        document.getElementById('drone-count').textContent = this.drones.length;
 
         const slowIndicator = document.getElementById('slow-indicator');
         if (this.slowEffect.active) {
@@ -865,6 +1213,78 @@ class Game2D {
         } else {
             boostIndicator.style.display = 'none';
         }
+
+        const shieldIndicator = document.getElementById('shield-indicator');
+        if (this.shield.active) {
+            shieldIndicator.style.display = 'block';
+        } else {
+            shieldIndicator.style.display = 'none';
+        }
+
+        const magnetIndicator = document.getElementById('magnet-indicator');
+        if (this.magnet.active) {
+            magnetIndicator.style.display = 'block';
+        } else {
+            magnetIndicator.style.display = 'none';
+        }
+
+        const freezeIndicator = document.getElementById('freeze-indicator');
+        if (this.freeze.active) {
+            freezeIndicator.style.display = 'block';
+        } else {
+            freezeIndicator.style.display = 'none';
+        }
+
+        const comboIndicator = document.getElementById('combo-indicator');
+        if (this.combo.count >= 2) {
+            comboIndicator.textContent = `${this.combo.count}x COMBO!`;
+            comboIndicator.style.display = 'block';
+        } else {
+            comboIndicator.style.display = 'none';
+        }
+
+        const slowmoIndicator = document.getElementById('slowmo-indicator');
+        if (this.slowMotion.active) {
+            slowmoIndicator.style.display = 'block';
+        } else {
+            slowmoIndicator.style.display = 'none';
+        }
+
+        const dashCd = document.getElementById('dash-cd');
+        if (this.dash.cooldown > 0) {
+            dashCd.textContent = Math.ceil(this.dash.cooldown) + 's';
+            dashCd.style.color = '#ff4444';
+        } else {
+            dashCd.textContent = '✓';
+            dashCd.style.color = '#00ff41';
+        }
+
+        const slowmoCd = document.getElementById('slowmo-cd');
+        if (this.slowMotion.cooldown > 0) {
+            slowmoCd.textContent = Math.ceil(this.slowMotion.cooldown) + 's';
+            slowmoCd.style.color = '#ff4444';
+        } else {
+            slowmoCd.textContent = '✓';
+            slowmoCd.style.color = '#00ff41';
+        }
+    }
+
+    createParticles(x, y, color, count) {
+        for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 / count) * i;
+            const speed = 100 + Math.random() * 100;
+            this.particles.push({
+                x: x,
+                y: y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 50,
+                color: color,
+                size: 3 + Math.random() * 3,
+                life: 0.5 + Math.random() * 0.5,
+                maxLife: 0.5 + Math.random() * 0.5,
+                alpha: 1
+            });
+        }
     }
 
     checkCircleRectCollision(cx, cy, cr, rect) {
@@ -873,6 +1293,89 @@ class Game2D {
         const dx = cx - nearestX;
         const dy = cy - nearestY;
         return (dx * dx + dy * dy) < (cr * cr);
+    }
+
+    spawnNewDrone() {
+        let placed = false;
+        let attempts = 0;
+
+        while (!placed && attempts < 50) {
+            attempts++;
+
+            const drone = {
+                x: Math.random() * (this.displayWidth - 100) + 50,
+                y: Math.random() * (this.displayHeight - 100) + 50,
+                radius: 12,
+                speed: 100,
+                patrolPoints: [],
+                currentTargetIndex: 0,
+                justHit: false
+            };
+
+            for (let j = 0; j < 3; j++) {
+                drone.patrolPoints.push({
+                    x: Math.random() * (this.displayWidth - 100) + 50,
+                    y: Math.random() * (this.displayHeight - 100) + 50
+                });
+            }
+
+            let collides = false;
+
+            const playerDist = Math.sqrt(
+                Math.pow(drone.x - this.player.x, 2) +
+                Math.pow(drone.y - this.player.y, 2)
+            );
+            if (playerDist < 150) {
+                collides = true;
+            }
+
+            if (!collides) {
+                this.drones.push(drone);
+                this.createParticles(drone.x, drone.y, '#ff8800', 20);
+                placed = true;
+            }
+        }
+    }
+
+    activateDash() {
+        if (this.joystick.deltaX === 0 && this.joystick.deltaY === 0) return;
+
+        this.dash.active = true;
+        this.dash.cooldown = this.dash.maxCooldown;
+
+        const magnitude = Math.sqrt(this.joystick.deltaX ** 2 + this.joystick.deltaY ** 2);
+        const dirX = this.joystick.deltaX / magnitude;
+        const dirY = this.joystick.deltaY / magnitude;
+
+        const targetX = this.player.x + dirX * this.dash.distance;
+        const targetY = this.player.y + dirY * this.dash.distance;
+
+        let finalX = Math.max(this.player.radius, Math.min(this.displayWidth - this.player.radius, targetX));
+        let finalY = Math.max(this.player.radius, Math.min(this.displayHeight - this.player.radius, targetY));
+
+        let collides = false;
+        for (const obs of this.obstacles) {
+            if (this.checkCircleRectCollision(finalX, finalY, this.player.radius, obs)) {
+                collides = true;
+                break;
+            }
+        }
+
+        if (!collides) {
+            this.createParticles(this.player.x, this.player.y, '#00ff41', 20);
+            this.player.x = finalX;
+            this.player.y = finalY;
+            this.createParticles(this.player.x, this.player.y, '#00ff41', 20);
+        }
+
+        setTimeout(() => { this.dash.active = false; }, this.dash.duration * 1000);
+    }
+
+    activateSlowMotion() {
+        this.slowMotion.active = true;
+        this.slowMotion.duration = 3;
+        this.slowMotion.cooldown = this.slowMotion.maxCooldown;
+        this.createParticles(this.player.x, this.player.y, '#ffff00', 30);
     }
 
     win() {
@@ -959,7 +1462,15 @@ class Game2D {
 
             this.drawPlayer(ctx);
 
+            for (const drone of this.drones) {
+                this.drawDrone(ctx, drone);
+            }
+
             this.drawBoss(ctx);
+
+            for (const particle of this.particles) {
+                this.drawParticle(ctx, particle);
+            }
         }
 
         const jCtx = this.joystickCtx;
@@ -1083,23 +1594,32 @@ class Game2D {
         const glow = Math.sin(this.animTime * 4) * 8 + 15;
         const rotation = this.animTime * -3;
 
+        const colors = {
+            'speed': { main: '#00ffff', shadow: '#00ffff', r: 0, g: 255, b: 255 },
+            'shield': { main: '#ffaa00', shadow: '#ffaa00', r: 255, g: 170, b: 0 },
+            'magnet': { main: '#ff00ff', shadow: '#ff00ff', r: 255, g: 0, b: 255 },
+            'freeze': { main: '#aaaaff', shadow: '#aaaaff', r: 170, g: 170, b: 255 }
+        };
+
+        const color = colors[bonus.type] || colors['speed'];
+
         ctx.save();
         ctx.translate(bonus.x, bonus.y);
         ctx.rotate(rotation);
 
         ctx.shadowBlur = glow;
-        ctx.shadowColor = '#00ffff';
+        ctx.shadowColor = color.shadow;
 
         const outerGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, bonus.radius * 1.5);
-        outerGradient.addColorStop(0, `rgba(0, 255, 255, ${pulse * 0.4})`);
-        outerGradient.addColorStop(0.5, `rgba(0, 200, 255, ${pulse * 0.2})`);
-        outerGradient.addColorStop(1, `rgba(0, 150, 255, 0)`);
+        outerGradient.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, ${pulse * 0.4})`);
+        outerGradient.addColorStop(0.5, `rgba(${color.r}, ${color.g}, ${color.b}, ${pulse * 0.2})`);
+        outerGradient.addColorStop(1, `rgba(${color.r}, ${color.g}, ${color.b}, 0)`);
         ctx.fillStyle = outerGradient;
         ctx.beginPath();
         ctx.arc(0, 0, bonus.radius * 1.5, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = `rgba(0, 255, 255, ${pulse})`;
+        ctx.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${pulse})`;
         ctx.lineWidth = 2;
         ctx.lineCap = 'round';
 
@@ -1118,9 +1638,9 @@ class Game2D {
 
         ctx.shadowBlur = 20;
         const mainGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, bonus.radius);
-        mainGradient.addColorStop(0, `rgba(150, 255, 255, ${pulse})`);
-        mainGradient.addColorStop(0.5, `rgba(0, 255, 255, ${pulse})`);
-        mainGradient.addColorStop(1, `rgba(0, 180, 255, ${pulse})`);
+        mainGradient.addColorStop(0, `rgba(${color.r + 50}, ${color.g + 50}, ${color.b + 50}, ${pulse})`);
+        mainGradient.addColorStop(0.5, `rgba(${color.r}, ${color.g}, ${color.b}, ${pulse})`);
+        mainGradient.addColorStop(1, `rgba(${color.r - 50}, ${color.g - 50}, ${color.b - 50}, ${pulse})`);
         ctx.fillStyle = mainGradient;
         ctx.beginPath();
         ctx.arc(0, 0, bonus.radius, 0, Math.PI * 2);
@@ -1135,16 +1655,58 @@ class Game2D {
         ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
         ctx.lineWidth = 2;
 
-        ctx.beginPath();
-        ctx.moveTo(2, -8);
-        ctx.lineTo(-4, 0);
-        ctx.lineTo(1, 0);
-        ctx.lineTo(-2, 8);
-        ctx.lineTo(4, 0);
-        ctx.lineTo(-1, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
+        switch(bonus.type) {
+            case 'speed':
+                ctx.beginPath();
+                ctx.moveTo(2, -8);
+                ctx.lineTo(-4, 0);
+                ctx.lineTo(1, 0);
+                ctx.lineTo(-2, 8);
+                ctx.lineTo(4, 0);
+                ctx.lineTo(-1, 0);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                break;
+            case 'shield':
+                ctx.beginPath();
+                ctx.moveTo(0, -10);
+                ctx.lineTo(-6, -6);
+                ctx.lineTo(-6, 4);
+                ctx.lineTo(0, 10);
+                ctx.lineTo(6, 4);
+                ctx.lineTo(6, -6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                break;
+            case 'magnet':
+                ctx.beginPath();
+                ctx.moveTo(-5, -8);
+                ctx.lineTo(-5, 0);
+                ctx.lineTo(-8, 0);
+                ctx.lineTo(-8, 5);
+                ctx.lineTo(-5, 5);
+                ctx.moveTo(5, -8);
+                ctx.lineTo(5, 0);
+                ctx.lineTo(8, 0);
+                ctx.lineTo(8, 5);
+                ctx.lineTo(5, 5);
+                ctx.stroke();
+                break;
+            case 'freeze':
+                ctx.beginPath();
+                ctx.moveTo(0, -10);
+                ctx.lineTo(0, 10);
+                ctx.moveTo(-8, 0);
+                ctx.lineTo(8, 0);
+                ctx.moveTo(-5, -7);
+                ctx.lineTo(5, 7);
+                ctx.moveTo(5, -7);
+                ctx.lineTo(-5, 7);
+                ctx.stroke();
+                break;
+        }
 
         ctx.shadowBlur = 6;
         for (let i = 0; i < 6; i++) {
@@ -1153,7 +1715,7 @@ class Game2D {
             const px = Math.cos(particleAngle) * particleRadius;
             const py = Math.sin(particleAngle) * particleRadius;
 
-            ctx.fillStyle = `rgba(0, 255, 255, ${pulse * 0.9})`;
+            ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${pulse * 0.9})`;
             ctx.beginPath();
             ctx.arc(px, py, 2.5, 0, Math.PI * 2);
             ctx.fill();
@@ -1167,24 +1729,27 @@ class Game2D {
         const glow = Math.sin(this.animTime * 3) * 10 + 20;
         const rotation = this.animTime * 2;
 
+        const isTeleport = trap.type === 'teleport';
+        const color = isTeleport ? { r: 255, g: 0, b: 255 } : { r: 255, g: 0, b: 0 };
+
         ctx.save();
         ctx.translate(trap.x, trap.y);
         ctx.rotate(rotation);
 
         ctx.shadowBlur = glow;
-        ctx.shadowColor = '#ff0000';
+        ctx.shadowColor = isTeleport ? '#ff00ff' : '#ff0000';
 
         const outerGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, trap.radius);
-        outerGradient.addColorStop(0, `rgba(255, 0, 0, ${pulse * 0.3})`);
-        outerGradient.addColorStop(0.5, `rgba(255, 0, 0, ${pulse * 0.2})`);
-        outerGradient.addColorStop(1, `rgba(255, 0, 0, 0)`);
+        outerGradient.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, ${pulse * 0.3})`);
+        outerGradient.addColorStop(0.5, `rgba(${color.r}, ${color.g}, ${color.b}, ${pulse * 0.2})`);
+        outerGradient.addColorStop(1, `rgba(${color.r}, ${color.g}, ${color.b}, 0)`);
         ctx.fillStyle = outerGradient;
         ctx.beginPath();
         ctx.arc(0, 0, trap.radius, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = `rgba(255, 0, 0, ${pulse})`;
-        ctx.fillStyle = `rgba(255, 50, 0, ${pulse * 0.8})`;
+        ctx.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${pulse})`;
+        ctx.fillStyle = `rgba(${color.r}, ${Math.max(color.g, 50)}, ${color.b}, ${pulse * 0.8})`;
         ctx.lineWidth = 2;
 
         for (let i = 0; i < 6; i++) {
@@ -1205,14 +1770,19 @@ class Game2D {
 
         ctx.shadowBlur = 15;
         const centerGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, trap.radius * 0.4);
-        centerGradient.addColorStop(0, `rgba(255, 100, 0, ${pulse})`);
-        centerGradient.addColorStop(1, `rgba(200, 0, 0, ${pulse})`);
+        if (isTeleport) {
+            centerGradient.addColorStop(0, `rgba(255, 100, 255, ${pulse})`);
+            centerGradient.addColorStop(1, `rgba(200, 0, 200, ${pulse})`);
+        } else {
+            centerGradient.addColorStop(0, `rgba(255, 100, 0, ${pulse})`);
+            centerGradient.addColorStop(1, `rgba(200, 0, 0, ${pulse})`);
+        }
         ctx.fillStyle = centerGradient;
         ctx.beginPath();
         ctx.arc(0, 0, trap.radius * 0.4, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = `rgba(255, 0, 0, ${pulse})`;
+        ctx.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${pulse})`;
         ctx.lineWidth = 2;
         ctx.stroke();
 
@@ -1235,6 +1805,20 @@ class Game2D {
             ctx.arc(px, py, 2, 0, Math.PI * 2);
             ctx.fill();
         }
+
+        ctx.restore();
+    }
+
+    drawParticle(ctx, p) {
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = p.color;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
 
         ctx.restore();
     }
@@ -1505,6 +2089,136 @@ class Game2D {
         ctx.arc(handX, handY, 2.5, 0, Math.PI * 2);
         ctx.fill();
 
+        if (this.shield.active && this.shield.hits > 0) {
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, this.player.x, this.player.y);
+
+            const shieldPulse = Math.sin(this.animTime * 8) * 0.3 + 0.7;
+            const shieldRadius = this.player.radius + 8;
+
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#ffaa00';
+
+            ctx.strokeStyle = `rgba(255, 170, 0, ${shieldPulse * 0.8})`;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, shieldRadius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.strokeStyle = `rgba(255, 200, 0, ${shieldPulse * 0.5})`;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, shieldRadius + 3, 0, Math.PI * 2);
+            ctx.stroke();
+
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i + this.animTime * 2;
+                const x = Math.cos(angle) * shieldRadius;
+                const y = Math.sin(angle) * shieldRadius;
+
+                ctx.fillStyle = `rgba(255, 200, 100, ${shieldPulse})`;
+                ctx.beginPath();
+                ctx.arc(x, y, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        ctx.restore();
+    }
+
+    drawDrone(ctx, drone) {
+        ctx.save();
+        ctx.translate(drone.x, drone.y);
+
+        const pulse = Math.sin(this.animTime * 5) * 0.3 + 0.7;
+        const glow = Math.sin(this.animTime * 3) * 10 + 20;
+        const rotation = this.animTime * 4;
+
+        ctx.shadowBlur = glow;
+        ctx.shadowColor = '#ff8800';
+
+        ctx.rotate(rotation);
+
+        const outerGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, drone.radius * 1.3);
+        outerGradient.addColorStop(0, `rgba(255, 136, 0, ${pulse * 0.4})`);
+        outerGradient.addColorStop(1, `rgba(255, 68, 0, 0)`);
+        ctx.fillStyle = outerGradient;
+        ctx.beginPath();
+        ctx.arc(0, 0, drone.radius * 1.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        const bodyGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, drone.radius);
+        bodyGradient.addColorStop(0, `rgba(255, 150, 50, ${pulse})`);
+        bodyGradient.addColorStop(0.6, `rgba(255, 100, 0, ${pulse})`);
+        bodyGradient.addColorStop(1, `rgba(200, 50, 0, ${pulse})`);
+        ctx.fillStyle = bodyGradient;
+        ctx.beginPath();
+        ctx.arc(0, 0, drone.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = `rgba(255, 255, 255, ${pulse})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        for (let i = 0; i < 4; i++) {
+            const angle = (Math.PI / 2) * i;
+            ctx.save();
+            ctx.rotate(angle);
+
+            ctx.strokeStyle = `rgba(255, 136, 0, ${pulse})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(drone.radius * 0.5, 0);
+            ctx.lineTo(drone.radius * 1.2, 0);
+            ctx.stroke();
+
+            ctx.fillStyle = `rgba(255, 200, 100, ${pulse})`;
+            ctx.beginPath();
+            ctx.arc(drone.radius * 1.2, 0, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = `rgba(255, 255, 0, ${pulse})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, drone.radius * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (this.freeze.active) {
+            const freezePulse = Math.sin(this.animTime * 10) * 0.3 + 0.7;
+
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#aaaaff';
+
+            ctx.strokeStyle = `rgba(170, 170, 255, ${freezePulse * 0.6})`;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, drone.radius + 4, 0, Math.PI * 2);
+            ctx.stroke();
+
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i;
+                const startRadius = drone.radius;
+                const endRadius = drone.radius + 6;
+
+                const x1 = Math.cos(angle) * startRadius;
+                const y1 = Math.sin(angle) * startRadius;
+                const x2 = Math.cos(angle) * endRadius;
+                const y2 = Math.sin(angle) * endRadius;
+
+                ctx.strokeStyle = `rgba(200, 220, 255, ${freezePulse})`;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+        }
+
         ctx.restore();
     }
 
@@ -1624,6 +2338,49 @@ class Game2D {
             ctx.moveTo(0, this.boss.radius * 0.3);
             ctx.lineTo(8 * Math.cos(legAngle), this.boss.radius * 0.7);
             ctx.stroke();
+        }
+
+        if (this.freeze.active) {
+            const freezePulse = Math.sin(this.animTime * 10) * 0.3 + 0.7;
+
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#aaaaff';
+
+            ctx.strokeStyle = `rgba(170, 170, 255, ${freezePulse * 0.6})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.boss.radius + 5, 0, Math.PI * 2);
+            ctx.stroke();
+
+            for (let i = 0; i < 8; i++) {
+                const angle = (Math.PI / 4) * i;
+                const startRadius = this.boss.radius;
+                const endRadius = this.boss.radius + 8;
+
+                const x1 = Math.cos(angle) * startRadius;
+                const y1 = Math.sin(angle) * startRadius;
+                const x2 = Math.cos(angle) * endRadius;
+                const y2 = Math.sin(angle) * endRadius;
+
+                ctx.strokeStyle = `rgba(200, 220, 255, ${freezePulse})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i + this.animTime * -1.5;
+                const radius = this.boss.radius + 6;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+
+                ctx.fillStyle = `rgba(220, 230, 255, ${freezePulse})`;
+                ctx.beginPath();
+                ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
 
         ctx.restore();
