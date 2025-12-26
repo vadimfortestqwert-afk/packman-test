@@ -16,7 +16,12 @@ class Game2D {
             y: 300,
             radius: 20,
             speed: 200,
-            color: '#00ff00'
+            color: '#00ff00',
+            direction: 1, // 1 = вправо, -1 = влево
+            wheelchair: {
+                wheelRotation: 0,
+                wheelSpeed: 0
+            }
         };
 
         this.bossImage = new Image();
@@ -374,6 +379,23 @@ class Game2D {
         if (canMove) {
             this.player.x = newX;
             this.player.y = newY;
+
+            // Обновляем направление на основе движения
+            if (Math.abs(this.joystick.deltaX) > 0.1) {
+                this.player.direction = this.joystick.deltaX > 0 ? 1 : -1;
+            }
+
+            // Обновляем вращение колес на основе скорости движения
+            const moveSpeed = Math.sqrt(
+                Math.pow(this.joystick.deltaX, 2) +
+                Math.pow(this.joystick.deltaY, 2)
+            );
+            this.player.wheelchair.wheelSpeed = moveSpeed * this.player.speed * dt;
+            this.player.wheelchair.wheelRotation += this.player.wheelchair.wheelSpeed * 10;
+        } else {
+            // Если не двигаемся, замедляем вращение колес
+            this.player.wheelchair.wheelSpeed *= 0.95;
+            this.player.wheelchair.wheelRotation += this.player.wheelchair.wheelSpeed;
         }
 
         const dx = this.player.x - this.boss.x;
@@ -469,6 +491,20 @@ class Game2D {
 
         document.getElementById('timer').textContent = Math.ceil(this.time);
         document.getElementById('coins').textContent = this.coinsCollected;
+
+        // Отладка направления (временно)
+        if (!document.getElementById('debug-direction')) {
+            const debugDiv = document.createElement('div');
+            debugDiv.id = 'debug-direction';
+            debugDiv.style.position = 'absolute';
+            debugDiv.style.top = '100px';
+            debugDiv.style.left = '20px';
+            debugDiv.style.color = '#00ff41';
+            debugDiv.style.fontSize = '20px';
+            debugDiv.style.zIndex = '999';
+            document.body.appendChild(debugDiv);
+        }
+        document.getElementById('debug-direction').textContent = `DIR: ${this.player.direction === 1 ? 'RIGHT →' : 'LEFT ←'}`;
     }
 
     checkCircleRectCollision(cx, cy, cr, rect) {
@@ -710,90 +746,258 @@ class Game2D {
         ctx.save();
         ctx.translate(this.player.x, this.player.y);
 
-        const pulse = Math.sin(this.animTime * 10) * 0.1 + 0.9;
-        const walkCycle = Math.sin(this.animTime * 8);
+        // Отражаем коляску в зависимости от направления движения
+        if (this.player.direction === -1) {
+            ctx.scale(-1, 1);
+        }
 
-        ctx.shadowBlur = 25;
-        ctx.shadowColor = '#00ff41';
+        const pulse = Math.sin(this.animTime * 10) * 0.1 + 0.9;
+        const wheelRotation = this.player.wheelchair.wheelRotation;
 
         ctx.strokeStyle = `rgba(0, 255, 65, ${pulse})`;
         ctx.fillStyle = `rgba(0, 255, 65, ${pulse})`;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2;
         ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
 
+        // ВИД СБОКУ - 2D ИНВАЛИДНАЯ КОЛЯСКА
+
+        // ========== ЗАДНЕЕ БОЛЬШОЕ КОЛЕСО ==========
+        const bigWheelRadius = 12;
+        const backWheelX = -8;
+        const backWheelY = 10;
+
+        ctx.save();
+        ctx.translate(backWheelX, backWheelY);
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = '#00ff41';
+        ctx.lineWidth = 2.5;
+
+        // Внешний обод
         ctx.beginPath();
-        ctx.moveTo(0, 2);
-        ctx.lineTo(0, 14);
+        ctx.arc(0, 0, bigWheelRadius, 0, Math.PI * 2);
         ctx.stroke();
 
-        const armSwing = walkCycle * 0.5;
+        // Внутренний обод
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, bigWheelRadius - 3, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Спицы с вращением
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 8; i++) {
+            const angle = (Math.PI / 4) * i + wheelRotation;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(angle) * 2, Math.sin(angle) * 2);
+            ctx.lineTo(Math.cos(angle) * (bigWheelRadius - 3), Math.sin(angle) * (bigWheelRadius - 3));
+            ctx.stroke();
+        }
+
+        // Центральная ось
+        ctx.fillStyle = `rgba(0, 255, 65, ${pulse})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+
+        // ========== ПЕРЕДНЕЕ МАЛЕНЬКОЕ КОЛЕСО ==========
+        const smallWheelRadius = 4;
+        const frontWheelX = 10;
+        const frontWheelY = 18;
+
+        ctx.save();
+        ctx.translate(frontWheelX, frontWheelY);
+        ctx.shadowBlur = 12;
+        ctx.lineWidth = 1.5;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, smallWheelRadius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Спицы
+        for (let i = 0; i < 4; i++) {
+            const angle = (Math.PI / 2) * i + wheelRotation * 0.5;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(Math.cos(angle) * smallWheelRadius, Math.sin(angle) * smallWheelRadius);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+
+        // ========== РАМА КОЛЯСКИ ==========
+        ctx.shadowBlur = 15;
+        ctx.lineWidth = 2;
+
+        // Сиденье (горизонтальная линия)
         ctx.beginPath();
         ctx.moveTo(-10, 6);
-        ctx.lineTo(0, 6);
-        ctx.lineTo(-8, 12 + armSwing * 5);
-        ctx.moveTo(10, 6);
-        ctx.lineTo(0, 6);
-        ctx.lineTo(8, 12 - armSwing * 5);
+        ctx.lineTo(8, 6);
         ctx.stroke();
 
-        const legSwing = walkCycle * 0.6;
+        // Спинка (вертикальная)
         ctx.beginPath();
-        ctx.moveTo(0, 14);
-        ctx.lineTo(-6, 22 + legSwing * 4);
-        ctx.moveTo(0, 14);
-        ctx.lineTo(6, 22 - legSwing * 4);
+        ctx.moveTo(-10, -6);
+        ctx.lineTo(-10, 6);
         ctx.stroke();
+
+        // Верхняя часть спинки
+        ctx.beginPath();
+        ctx.moveTo(-10, -6);
+        ctx.lineTo(-7, -6);
+        ctx.stroke();
+
+        // Подлокотник
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-9, 0);
+        ctx.lineTo(-7, 0);
+        ctx.stroke();
+
+        // Рама от сиденья к заднему колесу
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-8, 6);
+        ctx.lineTo(backWheelX, backWheelY - bigWheelRadius);
+        ctx.stroke();
+
+        // Рама от сиденья к переднему колесу
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(8, 6);
+        ctx.lineTo(8, 14);
+        ctx.lineTo(frontWheelX, frontWheelY - smallWheelRadius);
+        ctx.stroke();
+
+        // Подножка
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(6, 14);
+        ctx.lineTo(10, 14);
+        ctx.stroke();
+
+        // ========== ПЕРСОНАЖ (ВИД СБОКУ) ==========
+        ctx.shadowBlur = 20;
+
+        // Голова
+        const headRadius = 10;
+        const headX = -2;
+        const headY = -8;
 
         if (this.hackerImage.complete && this.hackerImage.width > 0) {
-            const headRadius = 12;
-
-            ctx.shadowBlur = 30;
+            ctx.shadowBlur = 25;
             ctx.shadowColor = `rgba(0, 255, 65, ${pulse})`;
 
             ctx.save();
             ctx.beginPath();
-            ctx.arc(0, -8, headRadius, 0, Math.PI * 2);
+            ctx.arc(headX, headY, headRadius, 0, Math.PI * 2);
             ctx.closePath();
             ctx.clip();
 
             ctx.drawImage(
                 this.hackerImage,
-                -headRadius,
-                -8 - headRadius,
+                headX - headRadius,
+                headY - headRadius,
                 headRadius * 2,
                 headRadius * 2
             );
             ctx.restore();
 
-            ctx.shadowBlur = 20;
+            ctx.shadowBlur = 18;
             ctx.strokeStyle = `rgba(0, 255, 65, ${pulse})`;
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(0, -8, headRadius, 0, Math.PI * 2);
+            ctx.arc(headX, headY, headRadius, 0, Math.PI * 2);
             ctx.stroke();
 
+            // Эффект сканирования
             ctx.shadowBlur = 0;
             ctx.strokeStyle = `rgba(0, 255, 65, 0.2)`;
-            ctx.lineWidth = 1;
-            for (let i = -headRadius; i < headRadius; i += 3) {
+            ctx.lineWidth = 0.8;
+            for (let i = -headRadius; i < headRadius; i += 2) {
                 ctx.beginPath();
-                ctx.moveTo(-headRadius, -8 + i);
-                ctx.lineTo(headRadius, -8 + i);
+                ctx.moveTo(headX - headRadius, headY + i);
+                ctx.lineTo(headX + headRadius, headY + i);
                 ctx.stroke();
             }
-
         } else {
+            ctx.shadowBlur = 18;
+            ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(0, -8, 8, 0, Math.PI * 2);
+            ctx.arc(headX, headY, 8, 0, Math.PI * 2);
             ctx.stroke();
         }
 
-        ctx.shadowBlur = 10;
+        // Туловище (наклонен назад к спинке)
+        ctx.strokeStyle = `rgba(0, 255, 65, ${pulse})`;
+        ctx.shadowBlur = 18;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(-1, 2);   // Шея
+        ctx.lineTo(-6, 6);   // Спина к спинке
+        ctx.stroke();
+
+        // Бедра на сиденье
+        ctx.beginPath();
+        ctx.moveTo(-6, 6);
+        ctx.lineTo(0, 7);
+        ctx.stroke();
+
+        // Ноги согнуты в коленях
+        ctx.lineWidth = 2;
+
+        // Бедро
+        ctx.beginPath();
+        ctx.moveTo(0, 7);
+        ctx.lineTo(5, 11);
+        ctx.stroke();
+
+        // Голень (вниз на подножку)
+        ctx.beginPath();
+        ctx.moveTo(5, 11);
+        ctx.lineTo(8, 14);
+        ctx.stroke();
+
+        // Стопа на подножке
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(8, 14);
+        ctx.lineTo(10, 14);
+        ctx.stroke();
+
+        // РУКИ КРУТЯТ ЗАДНЕЕ КОЛЕСО!
+        const handRotation = Math.sin(this.animTime * 5) * 0.4;
+        ctx.lineWidth = 2.5;
+        ctx.shadowBlur = 15;
+
+        // Плечо
+        ctx.beginPath();
+        ctx.moveTo(-1, 3);
+        ctx.lineTo(-4, 5);
+        ctx.stroke();
+
+        // Рука к колесу (локоть)
+        ctx.beginPath();
+        ctx.moveTo(-4, 5);
+        ctx.lineTo(backWheelX - 3, backWheelY - 4 + handRotation * 5);
+        ctx.stroke();
+
+        // Предплечье на ободе колеса
+        ctx.beginPath();
+        ctx.moveTo(backWheelX - 3, backWheelY - 4 + handRotation * 5);
+        const handAngle = wheelRotation + handRotation;
+        const handX = backWheelX + Math.cos(handAngle + Math.PI * 0.7) * bigWheelRadius;
+        const handY = backWheelY + Math.sin(handAngle + Math.PI * 0.7) * bigWheelRadius;
+        ctx.lineTo(handX, handY);
+        ctx.stroke();
+
+        // Кисть на ободе
         ctx.fillStyle = `rgba(0, 255, 65, ${pulse})`;
-        ctx.font = 'bold 10px monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('<>', 0, 8);
+        ctx.beginPath();
+        ctx.arc(handX, handY, 2.5, 0, Math.PI * 2);
+        ctx.fill();
 
         ctx.restore();
     }
