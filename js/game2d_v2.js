@@ -199,6 +199,13 @@ class Game2D {
             deltaY: 0
         };
 
+        this.keys = {
+            w: false,
+            a: false,
+            s: false,
+            d: false
+        };
+
         this.animTime = 0;
 
         this.displayWidth = window.innerWidth - 20;
@@ -588,11 +595,15 @@ class Game2D {
         };
 
         const handleEnd = () => {
-            this.joystick.active = false;
-            this.joystick.knobX = this.joystick.baseX;
-            this.joystick.knobY = this.joystick.baseY;
-            this.joystick.deltaX = 0;
-            this.joystick.deltaY = 0;
+            const hasKeyPressed = this.keys.w || this.keys.a || this.keys.s || this.keys.d;
+
+            if (!hasKeyPressed) {
+                this.joystick.active = false;
+                this.joystick.knobX = this.joystick.baseX;
+                this.joystick.knobY = this.joystick.baseY;
+                this.joystick.deltaX = 0;
+                this.joystick.deltaY = 0;
+            }
         };
 
         document.addEventListener('touchstart', (e) => {
@@ -632,6 +643,36 @@ class Game2D {
         });
     }
 
+    updateKeyboardJoystick() {
+        const hasKeyPressed = this.keys.w || this.keys.a || this.keys.s || this.keys.d;
+
+        if (!hasKeyPressed) {
+            return;
+        }
+
+        let keyDeltaX = 0;
+        let keyDeltaY = 0;
+
+        if (this.keys.w) keyDeltaY -= 1;
+        if (this.keys.s) keyDeltaY += 1;
+        if (this.keys.a) keyDeltaX -= 1;
+        if (this.keys.d) keyDeltaX += 1;
+
+        const magnitude = Math.sqrt(keyDeltaX * keyDeltaX + keyDeltaY * keyDeltaY);
+        if (magnitude > 0) {
+            keyDeltaX /= magnitude;
+            keyDeltaY /= magnitude;
+        }
+
+        this.joystick.deltaX = keyDeltaX;
+        this.joystick.deltaY = keyDeltaY;
+
+        const displayRadius = this.joystick.radius;
+        this.joystick.knobX = this.joystick.baseX + keyDeltaX * displayRadius;
+        this.joystick.knobY = this.joystick.baseY + keyDeltaY * displayRadius;
+        this.joystick.active = true;
+    }
+
     setupUI() {
         document.getElementById('start-btn').addEventListener('click', () => this.startGame());
         document.getElementById('restart-win-btn').addEventListener('click', () => this.startGame());
@@ -646,6 +687,34 @@ class Game2D {
 
             if (e.code === 'ShiftLeft' && this.slowMotion.cooldown <= 0 && !this.slowMotion.active) {
                 this.activateSlowMotion();
+            }
+
+            if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+                this.keys.w = true;
+            }
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+                this.keys.a = true;
+            }
+            if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+                this.keys.s = true;
+            }
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') {
+                this.keys.d = true;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+                this.keys.w = false;
+            }
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+                this.keys.a = false;
+            }
+            if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+                this.keys.s = false;
+            }
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') {
+                this.keys.d = false;
             }
         });
     }
@@ -773,6 +842,8 @@ class Game2D {
         if (this.state !== 'playing') {
             return;
         }
+
+        this.updateKeyboardJoystick();
 
         if (this.combo.timer > 0) {
             this.combo.timer -= dt;
