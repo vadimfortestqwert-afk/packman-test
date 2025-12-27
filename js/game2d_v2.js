@@ -111,17 +111,17 @@ class Game2D {
         this.sound = new SoundManager();
 
         this.state = 'menu';
-        this.time = 120;
+        this.time = 190;
         this.coinsCollected = 0;
-        this.coinsTotal = 35;
-        this.coinsRequired = 35;
+        this.coinsTotal = 50;
+        this.coinsRequired = 50;
         this.lives = 3;
 
         this.player = {
             x: 400,
             y: 300,
             radius: 14,
-            speed: 280,
+            speed: 200,
             color: '#00ff00',
             direction: 1,
             wheelchair: {
@@ -136,10 +136,11 @@ class Game2D {
             x: 100,
             y: 100,
             radius: 20,
-            speed: 160,
-            baseSpeed: 160,
+            speed: 140,
+            baseSpeed: 140,
             rushTimer: 0,
-            rushCooldown: 0
+            rushCooldown: 0,
+            justHit: false
         };
 
         this.hackerImage = new Image();
@@ -318,7 +319,7 @@ class Game2D {
         const area = this.displayWidth * this.displayHeight;
         const baseArea = 640000;
         const areaRatio = area / baseArea;
-        const numTraps = Math.max(3, Math.min(7, Math.floor(5 * areaRatio)));
+        const numTraps = Math.max(5, Math.min(12, Math.floor(8 * areaRatio)));
 
         for (let i = 0; i < numTraps; i++) {
             let placed = false;
@@ -446,7 +447,7 @@ class Game2D {
 
     generateDrones() {
         this.drones = [];
-        const numDrones = 2;
+        const numDrones = 15;
 
         for (let i = 0; i < numDrones; i++) {
             let placed = false;
@@ -459,7 +460,7 @@ class Game2D {
                     x: Math.random() * (this.displayWidth - 100) + 50,
                     y: Math.random() * (this.displayWidth - 100) + 50,
                     radius: 12,
-                    speed: 100,
+                    speed: 120,
                     patrolPoints: [],
                     currentTargetIndex: 0,
                     justHit: false
@@ -651,7 +652,7 @@ class Game2D {
 
     startGame() {
         this.state = 'playing';
-        this.time = 120;
+        this.time = 190;
         this.coinsCollected = 0;
         this.lives = 3;
 
@@ -699,6 +700,7 @@ class Game2D {
         this.boss.rushTimer = 0;
         this.boss.rushCooldown = 0;
         this.boss.speed = this.boss.baseSpeed;
+        this.boss.justHit = false;
 
         this.particles = [];
         this.combo.count = 0;
@@ -1306,7 +1308,7 @@ class Game2D {
                 x: Math.random() * (this.displayWidth - 100) + 50,
                 y: Math.random() * (this.displayHeight - 100) + 50,
                 radius: 12,
-                speed: 100,
+                speed: 120,
                 patrolPoints: [],
                 currentTargetIndex: 0,
                 justHit: false
